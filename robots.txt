@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://atmik-yoga-fitness.github.io/atmik-yoga-fitness/sitemap.xml
