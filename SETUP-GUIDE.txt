@@ -1,0 +1,73 @@
+ATMIK YOGA & FITNESS - GOOGLE SEARCH CONSOLE SETUP
+===================================================
+Site: https://atmik-yoga-fitness.github.io/
+
+STEP 1 - UPLOAD TO GITHUB
+ 1. Unzip this folder on your computer.
+ 2. Open your repo "atmik-yoga-fitness.github.io" on github.com.
+ 3. Click Add file > Upload files. Drag ALL files from the unzipped
+    folder (not the folder itself). Replace the old index.html.
+    Include the hidden file ".nojekyll" if your computer shows it
+    (it is optional).
+ 4. Click "Commit changes". Wait 1-2 minutes.
+ 5. Test in your browser:
+      /sitemap.xml   /robots.txt   /favicon.ico   /og-image.jpg
+
+STEP 2 - ADD THE SITE IN SEARCH CONSOLE
+ 1. Go to https://search.google.com/search-console and sign in
+    (use the Google account that owns the Business Profile).
+ 2. Click "Add property" > choose "URL prefix" (the right box).
+ 3. Type exactly: https://atmik-yoga-fitness.github.io/
+    (GitHub Pages does not allow the "Domain" option.)
+
+STEP 3 - VERIFY OWNERSHIP (pick ONE method)
+ Method A: HTML tag (easiest)
+  1. In the verify screen choose "HTML tag". Copy the line like:
+     <meta name="google-site-verification" content="XXXX">
+  2. Open index.html on GitHub (pencil icon), paste that line right
+     after <head> (before <meta charset>), commit.
+  3. Go back to Search Console and click Verify.
+ Method B: HTML file
+  1. Download the file Google gives (googleXXXX.html).
+  2. Upload it to the repo root (same place as index.html), commit,
+     then click Verify.
+ Keep the tag/file there forever or you lose verification.
+
+STEP 4 - SUBMIT THE SITEMAP
+ 1. Left menu > Sitemaps.
+ 2. In "Add a new sitemap" type: sitemap.xml  and press Submit.
+ 3. Status should say "Success". (It may say "Couldn't fetch" for a
+    few hours at first; wait and refresh.)
+
+STEP 5 - ASK GOOGLE TO INDEX THE HOME PAGE
+ 1. Top search bar > paste https://atmik-yoga-fitness.github.io/
+ 2. Press Enter, then click "Request indexing". Wait for the result.
+ 3. Indexing can take from a few days to 2-3 weeks.
+
+STEP 6 - CHECK THESE LATER
+ - Pages: should show your page as "Indexed".
+ - Performance: shows what people search to find you.
+ - Experience > Core Web Vitals / Mobile usability: look for issues.
+ - Re-run "Request indexing" after big changes to index.html.
+
+STEP 7 - GOOGLE BUSINESS PROFILE (separate, important for the map card)
+ 1. Go to business.google.com, open Atmik Yoga & Fitness.
+ 2. Edit profile > Website: set https://atmik-yoga-fitness.github.io/
+ 3. Photos: upload logo (atmik-logo) and the banner, plus real photos
+    of the studio and classes. Set the logo and cover photo.
+ 4. Check Name, Address, Phone, Hours, Category (Yoga studio) and
+    Services are complete. Ask students for reviews using the QR.
+ 5. Link Search Console to Business Profile is not needed.
+
+STEP 8 - REFRESH SOCIAL PREVIEWS
+ - Facebook Sharing Debugger: https://developers.facebook.com/tools/debug/
+   paste your link, click "Scrape Again".
+ - WhatsApp caches previews; share the link in a new chat to test.
+
+NOTES
+ - The globe icon on Google results is replaced after Google
+   re-crawls the page; this can take days to weeks.
+ - Nothing here guarantees a ranking; consistent reviews, photos
+   and a complete Business Profile help the most.
+ - The Search Console verification code can only come from your
+   own Google account, so it cannot be pre-filled in this zip.
