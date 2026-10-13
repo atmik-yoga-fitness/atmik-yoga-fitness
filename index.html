@@ -3628,12 +3628,46 @@ async function submitDemoForm(e) {
     }
     refreshKnowledge();
 
+    /* ---- reliable navigation: closes the full-screen chat on phones, then scrolls exactly to the section ---- */
+    const smallScreen=()=>window.matchMedia('(max-width:600px),(max-height:500px) and (orientation:landscape)').matches;
+    function go(target){
+      const el=typeof target==='string'?document.querySelector(target):target;
+      if(!el) return false;
+      if(smallScreen()) toggle(false);
+      const root=document.documentElement;
+      root.classList.add('atmik-jumping');           /* render every section so the distance is exact */
+      const navEl=document.querySelector('nav');
+      const navH=navEl?navEl.getBoundingClientRect().height:68;
+      const place=(smooth)=>{
+        const y=el.getBoundingClientRect().top+window.pageYOffset-navH-12;
+        window.scrollTo({top:Math.max(0,y),behavior:smooth?'smooth':'auto'});
+      };
+      window.setTimeout(()=>place(true),smallScreen()?180:20);
+      window.setTimeout(()=>{ /* correct any drift caused by images/sections finishing layout */
+        const r=el.getBoundingClientRect().top-navH-12;
+        if(Math.abs(r)>30) place(false);
+      },1100);
+      window.setTimeout(()=>root.classList.remove('atmik-jumping'),1800);
+      el.classList.add('atmik-ai-flash');
+      window.setTimeout(()=>el.classList.remove('atmik-ai-flash'),2400);
+      return true;
+    }
+    window.atmikGo=go;
+
     const actions={
       'Classes':()=>go('#services'),
-      'Timings':()=>go('#schedule-explorer'),
+      'Timings':()=>go('#timing')||go('#schedule-explorer'),
+      'Schedule Explorer':()=>go('#schedule-explorer'),
       'Pricing':()=>go('#pricing'),
       'Demo':()=>go('#contact'),
+      'Free Demo':()=>go('#contact'),
       'Contact':()=>go('#contact'),
+      'Location':()=>go('.map-embed')||go('#contact'),
+      'Reviews':()=>go('#reviews'),
+      'Gallery':()=>go('#gallery'),
+      'FAQ':()=>go('#faq'),
+      'Shop':()=>go('#ayf-shop'),
+      'About':()=>go('#about'),
       'Class Finder':()=>go('#class-finder'),
       'Senior Yoga':()=>go('#services'),
       'Kids Yoga':()=>go('#services'),
@@ -3645,7 +3679,7 @@ async function submitDemoForm(e) {
     function openAnchor(anchor){
       if(anchor){
         const el=document.getElementById(anchor);
-        if(el){el.scrollIntoView({behavior:'smooth',block:'start'});return;}
+        if(el){go(el);return;}
       }
       go('#services');
     }
@@ -3670,7 +3704,7 @@ async function submitDemoForm(e) {
           const speak=document.createElement('button');
           speak.type='button';speak.className='ai-speak';speak.setAttribute('aria-label','Read this answer aloud');speak.textContent='🔊';
           speak.addEventListener('click',()=>{
-            try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-IN';u.rate=.96;window.speechSynthesis.speak(u);}catch(_){}
+            try{window.atmikSpeak(text,speak);}catch(_){}
           });
           tools.appendChild(speak);
         }
@@ -3678,7 +3712,7 @@ async function submitDemoForm(e) {
       }
       if(chips.length){
         const wrap=document.createElement('div');wrap.className='atmik-ai-chips';
-        chips.forEach(ch=>{const b=document.createElement('button');b.type='button';b.className='atmik-ai-chip';b.textContent=ch;b.addEventListener('click',()=>actions[ch]?.());wrap.appendChild(b);});
+        chips.forEach(ch=>{const b=document.createElement('button');b.type='button';b.className='atmik-ai-chip';b.textContent=ch;b.addEventListener('click',()=>{const fn=actions[ch];if(fn)fn();else{input.value=ch;sendQuestion();}});wrap.appendChild(b);});
         msg.appendChild(wrap);
       }
       aiBody.appendChild(msg);
@@ -3689,6 +3723,7 @@ async function submitDemoForm(e) {
       'What classes are available?',
       'What are the class timings?',
       'Where is the centre?',
+      'What are the fees?',
       'How can I book a free demo?',
       'What is the difference between Yoga and Zumba?',
       'Do you have online classes?'
@@ -3711,11 +3746,16 @@ async function submitDemoForm(e) {
     function directAnswer(q){
       const x=normalize(q);
       if(/\b(hi|hello|hey|namaste)\b/.test(x)) return {text:'Namaste 🙏 I’m the Atmik AI Guide. Ask me anything about the classes, published timings, locations, demo booking, pricing, contact options, or other information shown on this website.',chips:['Classes','Timings','Demo']};
+      if(/\b(difference|different|vs|versus|compare|comparison)\b/.test(x) && /zumba/.test(x) && /yoga/.test(x)) return {text:'Based on the website: Yoga focuses on mindful movement with pranayama and meditation, while Zumba is an energetic dance-fitness option designed to make movement active and enjoyable. Both can be tried through the Free Demo.',chips:['Classes','Demo','Class Finder']};
+      if(/\b(review|reviews|testimonial|feedback|rating)\b/.test(x)) return {text:'The Reviews section points to the centre’s real public reviews and social content instead of invented quotes.',chips:['Reviews','Gallery']};
+      if(/\b(gallery|photo|photos|pictures|video|videos|reel|reels)\b/.test(x)) return {text:'You can see photos in the Gallery and Instagram reels further down the page.',chips:['Gallery','Reviews']};
+      if(/\b(shop|buy|store|mat|essentials|product|products)\b/.test(x)) return {text:'The website has a Yoga Essentials Shop section.',chips:['Shop','Contact']};
+      if(/\b(faq|faqs|question|questions)\b/.test(x) && !/\b(what|where|how)\b/.test(x)) return {text:'The FAQ section answers common questions.',chips:['FAQ','Contact']};
       if(/\b(class|classes|program|programs|offer|offers|available)\b/.test(x) && !/timing|time|when|schedule/.test(x)) return {text:'The website currently lists Yoga, Zumba, Wellness, Senior Yoga, Kids Yoga and Online Classes. I can also explain the focus of any of these options.',chips:['Classes','Class Finder']};
-      if(/\b(timing|timings|schedule|batch|morning|evening|afternoon|when)\b/.test(x)) return {text:'The website has a Schedule Explorer with published batches that can be filtered by day, location and time of day. I can take you there so you can inspect the exact entries shown on the page.',chips:['Timings','Demo']};
+      if(/\b(timing|timings|schedule|batch|morning|evening|afternoon|when)\b/.test(x)) return {text:'The website has a Schedule Explorer with published batches that can be filtered by day, location and time of day. Tap Timings and I will take you straight to the Class Timings section.',chips:['Timings','Schedule Explorer','Demo']};
       if(/\b(price|pricing|fee|fees|cost|membership|monthly|month)\b/.test(x)) return {text:'There is a dedicated Pricing section on this website. I will not guess a fee that is not explicitly published; open the Pricing section to see the current plans shown on the page.',chips:['Pricing','Contact']};
       if(/\b(demo|trial|book|booking|appointment|join|enrol|enroll)\b/.test(x)) return {text:'You can use the existing Free Demo form on the website. It collects your contact details and class preferences before submission.',chips:['Demo','Contact']};
-      if(/\b(where|location|address|asansol|centre|center)\b/.test(x)) return {text:'The website publishes the Main Center in Asansol as its listed in-person location.',chips:['Timings','Contact']};
+      if(/\b(where|location|address|asansol|centre|center)\b/.test(x)) return {text:'The website publishes the Main Center in Asansol as its listed in-person location, with a map in the Contact section.',chips:['Location','Contact','Timings']};
       if(/\bzumba|dance-fitness|dance fitness\b/.test(x)) return {text:'Zumba is presented on the website as an energetic dance-fitness option designed to make movement feel active and enjoyable.',chips:['Zumba','Demo']};
       if(/\bsenior\b/.test(x)) return {text:'Senior Yoga is described as a gentle, senior-focused option with chair-assisted practice.',chips:['Senior Yoga','Contact']};
       if(/\b(kids|kid|child|children)\b/.test(x)) return {text:'Kids Yoga is designed for children, with the website highlighting movement, focus, coordination, confidence and healthy habits.',chips:['Kids Yoga','Demo']};
@@ -3740,7 +3780,10 @@ async function submitDemoForm(e) {
       const body=top.map(h=>'• '+h.text).join('\n');
       let text='Based on the information published on this website, here’s what I found:\n\n'+body;
       if(sections.length) text+='\n\nRelevant area: '+sections.join(' · ')+'.';
-      return {text,chips:sections.some(s=>/class/i.test(s))?['Classes']:['Contact'],meta:'Grounded in this page'};
+      const chips=sections.some(s=>/class/i.test(s))?['Classes']:['Contact'];
+      const a=top.find(h=>h.anchor&&document.getElementById(h.anchor));
+      if(a){const label='Open '+a.anchor.replace(/^mx-/,'').replace(/[-_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());actions[label]=()=>openAnchor(a.anchor);chips.unshift(label);}
+      return {text,chips,meta:'Grounded in this page'};
     }
 
     function persistMessage(role,text){
@@ -3774,7 +3817,7 @@ async function submitDemoForm(e) {
       if(open){
         try{sessionStorage.setItem('atmikAiOpened','1');}catch(_){}
         if(!aiBody.children.length){
-          addMessage('Namaste 🙏 I’m Atmik AI Guide. I read the information already published on this website, so I’ll answer from that information rather than inventing details. What would you like to know?', 'bot',['Classes','Timings','Demo'],'Knowledge-based assistant');
+          addMessage('Namaste 🙏 I’m Atmik AI Guide. I read the information already published on this website, so I’ll answer from that information rather than inventing details. What would you like to know?', 'bot',['Classes','Timings','Pricing','Demo'],'Knowledge-based assistant');
           restoreHistory();
         }
         input.focus();
@@ -6023,5 +6066,265 @@ if(!reduce){
 
 
 
+<!-- ===== ATMIK MOBILE FINAL FIX: performance + bottom bar + floating buttons + calm animations ===== -->
+<style id="atmik-mobile-final-fix">
+@media (max-width:900px){
+  :root{--bar-h:calc(60px + env(safe-area-inset-bottom,0px))}
+
+  /* ---------- 1. BOTTOM BAR: one tidy row, 4 equal buttons ---------- */
+  .mobile-actions{
+    display:grid!important;grid-template-columns:repeat(4,1fr);align-items:stretch;
+    position:fixed!important;left:0;right:0;bottom:0;z-index:3100!important;
+    height:var(--bar-h);padding:0 0 env(safe-area-inset-bottom,0px);margin:0;
+    background:#0d1e15;border-top:1px solid rgba(201,168,76,.45);
+    box-shadow:0 -6px 18px rgba(0,0,0,.28);transform:translateZ(0);
+  }
+  .mobile-actions a{
+    display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    min-height:60px;height:60px;padding:0 2px!important;margin:0;
+    font:600 .66rem/1.1 'DM Sans','Jost',system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;
+    color:#f1ead2!important;text-decoration:none;white-space:nowrap;text-align:center;
+    background:transparent;border:0;border-right:1px solid rgba(201,168,76,.22);
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mobile-actions a:last-child{border-right:0;background:linear-gradient(135deg,#c9a84c,#e0c06a);color:#10231a!important;font-weight:700}
+  .mobile-actions a:active{filter:brightness(1.15)}
+  body{padding-bottom:var(--bar-h)}
+  footer{padding-bottom:calc(var(--bar-h) + 1.5rem)!important}
+  .footer-copy{padding-bottom:1rem!important}
+  .mx-bar{display:none!important}
+
+  /* ---------- 2. FLOATING BUTTONS: clean stack above the bar ---------- */
+  #atmik-ai-launcher{
+    display:grid!important;visibility:visible!important;opacity:1!important;
+    right:max(14px,env(safe-area-inset-right,0px))!important;
+    bottom:calc(var(--bar-h) + 14px)!important;
+    width:56px!important;height:56px!important;z-index:3200!important;
+  }
+  #atmik-ai-prompt{
+    right:max(14px,env(safe-area-inset-right,0px))!important;
+    bottom:calc(var(--bar-h) + 82px)!important;max-width:calc(100vw - 28px)!important;z-index:3200!important;
+  }
+  .floating-wa{display:none!important}
+  .back-top{
+    left:auto!important;right:calc(max(14px,env(safe-area-inset-right,0px)) + 8px)!important;
+    bottom:calc(var(--bar-h) + 84px)!important;width:40px!important;height:40px!important;z-index:3150!important;
+  }
+  /* sound button + sound-mode chip: bottom-left, side by side, clearly visible */
+  .mx-snd{
+    left:max(14px,env(safe-area-inset-left,0px))!important;
+    bottom:calc(var(--bar-h) + 14px)!important;
+    width:48px!important;height:48px!important;z-index:3150!important;
+    background:#0d1e15!important;border:2px solid #e8c97a!important;color:#f3d98a!important;
+    box-shadow:0 4px 14px rgba(0,0,0,.45)!important;
+  }
+  .mx-snd svg{width:24px!important;height:24px!important}
+  .mx-snd2{
+    left:calc(max(14px,env(safe-area-inset-left,0px)) + 58px)!important;
+    bottom:calc(var(--bar-h) + 22px)!important;
+    height:32px!important;padding:0 .9rem!important;z-index:3150!important;
+    background:#0d1e15!important;border:1.5px solid #e8c97a!important;color:#f3d98a!important;
+    font-size:.78rem!important;box-shadow:0 4px 14px rgba(0,0,0,.45)!important;
+  }
+  .toast{bottom:calc(var(--bar-h) + 12px)!important}
+
+  /* ---------- 3. SMOOTH, CALM ANIMATIONS (no sideways motion, no clipping, no rotation) ---------- */
+  html.mx-on .mx-pre,html.mx-on .mx-pre.mx-clip{
+    opacity:0!important;translate:0 18px!important;scale:1!important;clip-path:none!important;
+  }
+  .mx-in,.mx-in.mx-clip{animation:mxCalm .6s cubic-bezier(.22,.8,.3,1) var(--mx-d,0ms) both!important}
+  @keyframes mxCalm{from{opacity:0;translate:0 18px}to{opacity:1;translate:0 0}}
+  /* headings: whole title fades up, words no longer fly in individually */
+  .mx-w{overflow:visible!important;padding:0!important;margin:0!important}
+  html.mx-on .mx-t .mx-wi{translate:none!important;rotate:none!important;transition:none!important}
+  html.mx-on .mx-t{opacity:0;translate:0 14px;transition:opacity .6s ease,translate .6s cubic-bezier(.22,.8,.3,1)}
+  html.mx-on .mx-t.mx-t-in{opacity:1;translate:0 0}
+  html.cine-armed [data-cine-reveal]{transform:translate3d(0,14px,0)!important;filter:none!important;clip-path:none!important}
+  html.cine-armed [data-cine-reveal].cine-visible{transform:none!important}
+  .gallery-item img{transform:none!important}
+  /* page must never scroll sideways */
+  html,body{overflow-x:clip;max-width:100%}
+
+  /* ---------- 4. LESS LAG: remove the expensive effects on phones ---------- */
+  *,*::before,*::after{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  #mx-dust,#mx-glow,.mx-cd,.mx-cr,.mx-grain,.mx-sun,.atmik-leaves,.atmik-intro-grain{display:none!important}
+  #cine-gradient-field,#cine-gradient-field *,.atmik-trees,.atmik-trees *{animation:none!important;filter:none!important}
+  #atmik-ai-launcher .ai-ring{animation:none!important}
+  .hero-bg,.hero-overlay{animation:none!important;will-change:auto!important}
+  .service-card,.feature-card,.price-card,.perf-card,.community-card{box-shadow:0 4px 14px rgba(16,35,24,.10)!important;transition:none!important}
+  img{content-visibility:auto}
+}
+@media (max-width:900px) and (prefers-reduced-motion:reduce){
+  html.mx-on .mx-pre,html.mx-on .mx-t{opacity:1!important;translate:none!important}
+}
+</style>
+<script id="atmik-mobile-final-fix-js">
+(function(){
+  'use strict';
+  var mq=matchMedia('(max-width:900px)');
+  function apply(){
+    if(!mq.matches)return;
+    /* make sure the bar has all four actions in a sensible order, with clear labels */
+    var bar=document.querySelector('.mobile-actions');
+    if(bar){
+      var map={'tel:':'📞 Call','wa.me':'💬 WhatsApp','#ayf-shop':'🛍️ Shop','#contact':'🎁 Free Demo'};
+      Array.prototype.forEach.call(bar.querySelectorAll('a'),function(a){
+        var h=a.getAttribute('href')||'';
+        for(var k in map){if(h.indexOf(k)>-1){var p=map[k].split(' ');a.innerHTML='<span aria-hidden="true" style="font-size:1.15rem;line-height:1">'+p[0]+'</span><span>'+p.slice(1).join(' ')+'</span>';break;}}
+      });
+      var order=['tel:','wa.me','#ayf-shop','#contact'];
+      order.forEach(function(k){var a=bar.querySelector('a[href*="'+k+'"]');if(a)bar.appendChild(a);});
+    }
+    /* drop decorative layers that cost frames on phones */
+    ['mx-dust','mx-glow'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
+  window.addEventListener('load',function(){apply();setTimeout(apply,1500);});
+  /* pause all looping animation while the tab is hidden */
+  document.addEventListener('visibilitychange',function(){document.documentElement.classList.toggle('mx-away',document.hidden);});
+})();
+</script>
+<!-- ===== ATMIK PERFORMANCE LAYER: same look, far less work for the device ===== -->
+<style id="atmik-perf-css">
+/* off-screen sections are skipped by the browser until they are near the screen */
+#why-us,#member-benefits,#about,#services,#class-finder,#first-class,#pricing,#reviews,#google-qr,#gallery,#performances,#reels,#ayf-shop,#contact,#faq,#privacy,#terms,#health-disclaimer{
+  content-visibility:auto;contain-intrinsic-size:auto 900px}
+/* sections that are off-screen stop running their looping decorative animations */
+.atmik-off,.atmik-off *,.atmik-off::before,.atmik-off::after,.atmik-off *::before,.atmik-off *::after{animation-play-state:paused!important}
+/* isolate repaint areas of cards and media */
+.service-card,.feature-card,.price-card,.perf-card,.community-card,.journey-step,.timing-card,.faq-item,.gallery-item,.reel-frame{contain:layout paint style}
+img{image-rendering:auto}
+/* GPU hints only where things really move */
+.mx-row,.mx-ttrack{will-change:transform,translate}
+.mx-in,.mx-pre{will-change:auto}
+html.mx-lite .mx-grain,html.mx-lite .mx-sun,html.mx-lite #mx-dust,html.mx-lite #mx-glow{display:none!important}
+/* tab hidden: stop everything that loops */
+html.atmik-hidden *,html.atmik-hidden *::before,html.atmik-hidden *::after{animation-play-state:paused!important}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+<script id="atmik-perf-js">
+(function(){
+  'use strict';
+  var d=document,root=d.documentElement;
+  /* 1. images below the first screen: decode off the main thread and load lazily */
+  function tuneImages(){
+    var imgs=d.querySelectorAll('img');
+    for(var i=0;i<imgs.length;i++){
+      var im=imgs[i];
+      if(im.closest('nav,#mx-curtain,#atmik-hero-intro,.hero,.nav-logo'))continue;
+      if(!im.hasAttribute('decoding'))im.decoding='async';
+      if(!im.hasAttribute('loading')&&im.id!=='lightbox-img')im.loading='lazy';
+    }
+    var fr=d.querySelectorAll('iframe[src]');
+    for(var j=0;j<fr.length;j++){if(!fr[j].hasAttribute('loading'))fr[j].loading='lazy';}
+  }
+  /* 2. pause decorative loops in sections that are not on screen */
+  function watchSections(){
+    if(!('IntersectionObserver' in window))return;
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){e.target.classList.toggle('atmik-off',!e.isIntersecting);});
+    },{rootMargin:'200px 0px 200px 0px'});
+    d.querySelectorAll('section,footer').forEach(function(s){io.observe(s);});
+  }
+  /* 3. pause everything while the tab is hidden */
+  d.addEventListener('visibilitychange',function(){root.classList.toggle('atmik-hidden',d.hidden);});
+  /* 4. weak devices: switch to the light mode that already exists in the page */
+  try{
+    var mem=navigator.deviceMemory||8,cores=navigator.hardwareConcurrency||8;
+    if(mem<=4||cores<=4||(navigator.connection&&navigator.connection.saveData))root.classList.add('mx-lite');
+  }catch(e){}
+  function init(){tuneImages();watchSections();}
+  if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  /* sections added later by the page scripts */
+  window.addEventListener('load',function(){setTimeout(function(){tuneImages();watchSections();},1200);});
+})();
+</script>
+
+<script id="atmik-human-voice">
+/* Human-sounding voice guide: picks the most natural voice on the device, speaks sentence by sentence
+   with natural pauses, a slightly deeper pitch and a calm pace. Works within what the browser provides. */
+(function(){
+  'use strict';
+  if(!('speechSynthesis' in window)){window.atmikSpeak=function(){};return;}
+  var synth=window.speechSynthesis,voice=null,playing=false,btn=null;
+  var PREFER=[/natural/i,/neural/i,/online/i,/google uk english male/i,/google uk english female/i,/google us english/i,/google india/i,/microsoft (guy|ryan|aria|jenny|davis|neerja|prabhat|sonia)/i,/daniel/i,/oliver/i,/samantha/i,/karen/i,/rishi/i,/veena/i,/aaron/i,/alex/i];
+  function pick(){
+    var v=synth.getVoices().filter(function(x){return /^en(-|_|$)/i.test(x.lang);});
+    if(!v.length)return null;
+    for(var i=0;i<PREFER.length;i++){
+      var m=v.filter(function(x){return PREFER[i].test(x.name);});
+      if(m.length){var inV=m.filter(function(x){return /en[-_]IN/i.test(x.lang);});return inV[0]||m[0];}
+    }
+    return v.filter(function(x){return /en[-_]IN/i.test(x.lang);})[0]||v.filter(function(x){return !x.localService;})[0]||v[0];
+  }
+  function load(){voice=pick();}
+  load();if(synth.onvoiceschanged!==undefined)synth.addEventListener('voiceschanged',load);
+  function clean(t){
+    return String(t)
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}]/gu,' ')
+      .replace(/₹\s?([\d,]+)/g,'$1 rupees')
+      .replace(/\bAM\b/g,'A M').replace(/\bPM\b/g,'P M')
+      .replace(/\s*[•·|]\s*/g,'. ')
+      .replace(/https?:\/\/\S+/g,'')
+      .replace(/[*_#>`~]/g,'')
+      .replace(/\s*\n+\s*/g,'. ')
+      .replace(/\s{2,}/g,' ').trim();
+  }
+  function chunks(t){
+    var parts=t.match(/[^.!?;:]+[.!?;:]*/g)||[t],out=[],cur='';
+    parts.forEach(function(p){
+      p=p.trim();if(!p)return;
+      if((cur+' '+p).length<170)cur=(cur?cur+' ':'')+p;else{if(cur)out.push(cur);cur=p;}
+    });
+    if(cur)out.push(cur);return out;
+  }
+  function stop(){playing=false;try{synth.cancel();}catch(e){}if(btn){btn.textContent='🔊';btn.classList.remove('speaking');}}
+  window.atmikSpeak=function(text,button){
+    if(playing&&btn===button){stop();return;}
+    stop();btn=button||null;
+    var list=chunks(clean(text));if(!list.length)return;
+    if(!voice)load();
+    playing=true;if(btn){btn.textContent='⏹';btn.classList.add('speaking');}
+    var i=0;
+    (function next(){
+      if(!playing||i>=list.length){stop();return;}
+      var line=list[i++],u=new SpeechSynthesisUtterance(line);
+      if(voice){u.voice=voice;u.lang=voice.lang;}else u.lang='en-IN';
+      var q=/\?\s*$/.test(line);
+      u.rate=.92;                 /* calm, unhurried */
+      u.pitch=q?.98:.88;          /* deeper tone, lifts slightly on questions */
+      u.volume=1;
+      u.onend=function(){setTimeout(next,/[.!?]$/.test(line)?170:90);};
+      u.onerror=function(){if(playing)setTimeout(next,50);};
+      synth.speak(u);
+    })();
+  };
+  /* keep long speech alive on Chrome and stop it when the page is left */
+  setInterval(function(){if(playing&&synth.speaking&&!synth.paused){synth.pause();synth.resume();}},12000);
+  addEventListener('pagehide',stop);
+  document.addEventListener('visibilitychange',function(){if(document.hidden)stop();});
+})();
+</script>
+<style id="atmik-ai-nav-css">
+/* while the guide jumps to a section, render all sections so the scroll lands exactly */
+html.atmik-jumping section,html.atmik-jumping .timing{content-visibility:visible!important}
+/* brief highlight on the section the guide opened */
+@keyframes atmikAiFlash{0%{box-shadow:inset 0 0 0 0 rgba(201,168,76,0)}25%{box-shadow:inset 0 0 0 4px rgba(201,168,76,.65)}100%{box-shadow:inset 0 0 0 0 rgba(201,168,76,0)}}
+.atmik-ai-flash{animation:atmikAiFlash 2.2s ease-out 1}
+.atmik-ai-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.55rem}
+.atmik-ai-chip{min-height:36px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+</style>
+<script id="atmik-anchor-jump-fix">
+/* every in-page link (menu, buttons) also lands exactly on its section */
+(function(){
+  document.addEventListener('click',function(e){
+    var a=e.target.closest&&e.target.closest('a[href^="#"]');
+    if(!a)return;
+    var h=a.getAttribute('href');if(!h||h.length<2)return;
+    var r=document.documentElement;r.classList.add('atmik-jumping');
+    setTimeout(function(){r.classList.remove('atmik-jumping');},1800);
+  },true);
+})();
+</script>
 </body>
 </html>
