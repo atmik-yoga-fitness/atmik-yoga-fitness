@@ -1851,28 +1851,68 @@ window.addEventListener('load',function(){setTimeout(rel,4000)});setTimeout(rel,
       <div style="color:var(--gold-light);font-family:'Cormorant Garamond', serif;font-size:1.3rem;font-weight:600;letter-spacing:0.04em;margin-bottom:1.25rem;">Also on YouTube</div>
       <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2.5rem;">
         <div style="min-width:150px;">
-          <div id="yt-sub-count" style="font-size:2.4rem;font-weight:700;color:#fff;line-height:1;text-shadow:0 0 18px rgba(201,168,76,0.6);">0</div>
+          <div id="yt-sub-count" style="font-size:2.4rem;font-weight:700;color:#fff;line-height:1;text-shadow:0 0 18px rgba(201,168,76,0.6);">—</div>
           <div style="margin-top:.4rem;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Subscribers</div>
         </div>
         <div style="min-width:150px;">
-          <div id="yt-view-count" style="font-size:2.4rem;font-weight:700;color:#fff;line-height:1;text-shadow:0 0 18px rgba(201,168,76,0.6);">0</div>
+          <div id="yt-view-count" style="font-size:2.4rem;font-weight:700;color:#fff;line-height:1;text-shadow:0 0 18px rgba(201,168,76,0.6);">—</div>
           <div style="margin-top:.4rem;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.7);">Total Views</div>
         </div>
       </div>
+      <div id="yt-stats-msg" role="status" aria-live="polite" style="display:none;margin-top:1.1rem;font-size:0.85rem;color:var(--gold-light);letter-spacing:0.02em;padding:0.45rem 0.9rem;background:rgba(0,0,0,0.3);border-radius:8px;max-width:520px;margin-left:auto;margin-right:auto;border:1px solid rgba(201,168,76,0.25);line-height:1.4;"></div>
       <div style="margin-top:1.5rem;">
         <a href="https://www.youtube.com/@atmikyogafitness" target="_blank" rel="noopener" class="btn-primary" style="display:inline-block;">Subscribe on YouTube →</a>
       </div>
     </div>
     <script>
     (function(){
+      'use strict';
+
+      /* =========================================================================
+         PASTE YOUR YOUTUBE DATA API V3 KEY HERE:
+         Replace 'YOUR_NEW_YOUTUBE_API_KEY_HERE' with your Google Cloud API key.
+         Ensure your key is restricted in Google Cloud Console to:
+           1. HTTP Referrers:
+              - https://atmik-yoga-fitness.github.io/*
+              - https://atmik-yoga-fitness.github.io/atmik-yoga-fitness/*
+           2. API Restrictions: YouTube Data API v3
+         ========================================================================= */
+      var YT_API_KEY = 'AIzaSyCuMYkDg2L6K0Snl3aWnGZducHkHTmEDVw'; // <-- PASTE YOUR NEW API KEY HERE
+      var YT_CHANNEL_ID = 'UCohT1ukGi91eM7w_IFIdUOQ';   // Verified YouTube Channel ID for @atmikyogafitness
+      var YT_REFRESH_MS = 60000;                        // Auto-refresh every 60 seconds
+
+      var subEl = null;
+      var viewEl = null;
+      var msgEl = null;
+
+      var currentSub = null;
+      var currentView = null;
+      var hasAnimatedInitial = false;
+      var isElementInView = false;
+      var refreshTimer = null;
+      var lastFetchTime = 0;
+      var isFetching = false;
+
+      function getElements(){
+        if(!subEl) subEl = document.getElementById('yt-sub-count');
+        if(!viewEl) viewEl = document.getElementById('yt-view-count');
+        if(!msgEl) msgEl = document.getElementById('yt-stats-msg');
+        return subEl && viewEl;
+      }
+
       function animateCount(el, target, duration){
         if(!el) return;
-        var start = 0;
+        if(typeof target !== 'number' || isNaN(target)){
+          el.textContent = (target !== null && target !== undefined) ? String(target) : '—';
+          return;
+        }
         var startTime = null;
+        var dur = duration || 1800;
         function step(ts){
           if(!startTime) startTime = ts;
-          var progress = Math.min((ts - startTime) / duration, 1);
-          var value = Math.floor(progress * target);
+          var progress = Math.min((ts - startTime) / dur, 1);
+          var ease = 1 - Math.pow(1 - progress, 3);
+          var value = Math.floor(ease * target);
           el.textContent = value.toLocaleString('en-US');
           if(progress < 1){
             requestAnimationFrame(step);
@@ -1882,86 +1922,291 @@ window.addEventListener('load',function(){setTimeout(rel,4000)});setTimeout(rel,
         }
         requestAnimationFrame(step);
       }
-      function startYtCounters(){
-        var subEl = document.getElementById('yt-sub-count');
-        var viewEl = document.getElementById('yt-view-count');
-        if(!subEl || !viewEl) return;
-        animateCount(subEl, 41500, 1800);
-        animateCount(viewEl, 21684012, 2200);
-        startLiveYt(subEl, viewEl);
-      }
-      /* ===== LIVE YOUTUBE STATS =====
-         Paste your free YouTube Data API v3 key below (see instructions).
-         Until a key is set, the numbers above are shown as a fallback. */
-      var YT_API_KEY = 'AIzaSyCuMYkDg2L6K0Snl3aWnGZducHkHTmEDVw';                       // <-- PASTE API KEY HERE
-      var YT_CHANNEL_ID = 'UCohT1ukGi91eM7w_IFIdUOQ';
-      var YT_REFRESH_MS = 60000;                 // refresh every 60 seconds
-      var ytShown = {sub:41500, view:21684012};
-      function tweenTo(el, key, to){
-        var from = ytShown[key], t0 = null, dur = 900;
-        if(from === to) return;
-        function f(ts){
-          if(t0 === null) t0 = ts;
-          var p = Math.min((ts - t0)/dur, 1), e = 1 - Math.pow(1 - p, 3);
-          el.textContent = Math.round(from + (to - from)*e).toLocaleString('en-US');
-          if(p < 1) requestAnimationFrame(f); else ytShown[key] = to;
+
+      function tweenTo(el, from, to, duration){
+        if(!el) return;
+        if(typeof to !== 'number' || isNaN(to)){
+          el.textContent = (to !== null && to !== undefined) ? String(to) : '—';
+          return;
         }
-        requestAnimationFrame(f);
-      }
-      function startLiveYt(subEl, viewEl){
-        if(!YT_API_KEY || !window.fetch) return;
-        var timer = null;
-        function pull(){
-          if(document.hidden) return;
-          fetch('https://www.googleapis.com/youtube/v3/channels?part=statistics&id=' +
-                encodeURIComponent(YT_CHANNEL_ID) + '&key=' + encodeURIComponent(YT_API_KEY))
-            .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
-            .then(function(d){
-              var st = d && d.items && d.items[0] && d.items[0].statistics;
-              if(!st) return;
-              if(!st.hiddenSubscriberCount) tweenTo(subEl, 'sub', parseInt(st.subscriberCount, 10));
-              tweenTo(viewEl, 'view', parseInt(st.viewCount, 10));
-            })
-            .catch(function(e){ if(window.console) console.warn('YouTube live stats failed:', e); });
+        if(typeof from !== 'number' || isNaN(from)){
+          animateCount(el, to, duration);
+          return;
         }
-        setTimeout(function(){
-          pull();
-          timer = setInterval(pull, YT_REFRESH_MS);
-        }, 2400);
-        document.addEventListener('visibilitychange', function(){ if(!document.hidden) pull(); });
-      }
-      if(document.readyState === 'loading'){
-        document.addEventListener('DOMContentLoaded', function(){
-          var target = document.querySelector('.yt-stats-wrap');
-          if(target && 'IntersectionObserver' in window){
-            var obs = new IntersectionObserver(function(entries){
-              entries.forEach(function(entry){
-                if(entry.isIntersecting){
-                  startYtCounters();
-                  obs.disconnect();
-                }
-              });
-            }, {threshold:0.3});
-            obs.observe(target);
+        if(from === to){
+          el.textContent = to.toLocaleString('en-US');
+          return;
+        }
+        var startTime = null;
+        var dur = duration || 900;
+        function step(ts){
+          if(!startTime) startTime = ts;
+          var progress = Math.min((ts - startTime) / dur, 1);
+          var ease = 1 - Math.pow(1 - progress, 3);
+          var current = Math.round(from + (to - from) * ease);
+          el.textContent = current.toLocaleString('en-US');
+          if(progress < 1){
+            requestAnimationFrame(step);
           } else {
-            startYtCounters();
+            el.textContent = to.toLocaleString('en-US');
           }
-        });
-      } else {
+        }
+        requestAnimationFrame(step);
+      }
+
+      function showUnavailable(userMessage, technicalLog, isWarning){
+        getElements();
+        if(currentSub === null && subEl){
+          subEl.textContent = 'Unavailable';
+          subEl.style.fontSize = '1.35rem';
+        }
+        if(currentView === null && viewEl){
+          viewEl.textContent = 'Unavailable';
+          viewEl.style.fontSize = '1.35rem';
+        }
+        if(msgEl && userMessage){
+          msgEl.textContent = userMessage;
+          msgEl.style.display = 'block';
+        }
+        if(window.console){
+          var logFn = (isWarning || !technicalLog) ? console.warn : console.error;
+          logFn('[YouTube Data API]', technicalLog || userMessage);
+        }
+      }
+
+      function renderStats(sub, view){
+        getElements();
+        if(!subEl || !viewEl) return;
+
+        if(msgEl){
+          msgEl.style.display = 'none';
+          msgEl.textContent = '';
+        }
+
+        subEl.style.fontSize = '2.4rem';
+        viewEl.style.fontSize = '2.4rem';
+
+        if(!hasAnimatedInitial){
+          hasAnimatedInitial = true;
+          if(typeof sub === 'number'){
+            animateCount(subEl, sub, 1800);
+          } else {
+            subEl.textContent = sub || 'Hidden';
+          }
+          animateCount(viewEl, view, 2200);
+        } else {
+          if(typeof sub === 'number' && typeof currentSub === 'number'){
+            tweenTo(subEl, currentSub, sub, 900);
+          } else if(typeof sub === 'number'){
+            subEl.textContent = sub.toLocaleString('en-US');
+          } else {
+            subEl.textContent = sub || 'Hidden';
+          }
+
+          if(typeof currentView === 'number'){
+            tweenTo(viewEl, currentView, view, 900);
+          } else {
+            viewEl.textContent = view.toLocaleString('en-US');
+          }
+        }
+
+        currentSub = sub;
+        currentView = view;
+      }
+
+      function handleStatsPayload(data){
+        if(!data || !data.items || !Array.isArray(data.items) || data.items.length === 0){
+          showUnavailable(
+            'Live statistics unavailable (Channel not found)',
+            'No channel found for ID: ' + YT_CHANNEL_ID + '. Verify channel ID or handle.'
+          );
+          return;
+        }
+
+        var channel = data.items[0];
+        if(!channel.statistics){
+          showUnavailable(
+            'Live statistics unavailable (Channel statistics missing)',
+            'YouTube API response did not contain a statistics payload.'
+          );
+          return;
+        }
+
+        var st = channel.statistics;
+        var sub = st.hiddenSubscriberCount ? 'Hidden' : parseInt(st.subscriberCount, 10);
+        var view = parseInt(st.viewCount, 10);
+
+        if(isNaN(view)){
+          showUnavailable(
+            'Live statistics unavailable (Invalid statistics data)',
+            'Unable to parse viewCount: ' + st.viewCount
+          );
+          return;
+        }
+
+        if(typeof sub === 'number' && isNaN(sub)){
+          sub = 'Unavailable';
+        }
+
+        var targetSub = sub;
+        var targetView = view;
+
+        if(isElementInView){
+          renderStats(targetSub, targetView);
+        } else {
+          currentSub = targetSub;
+          currentView = targetView;
+        }
+      }
+
+      function fetchYouTubeStats(){
+        if(isFetching) return;
+        getElements();
+
+        if(!YT_API_KEY || YT_API_KEY === 'YOUR_NEW_YOUTUBE_API_KEY_HERE' || YT_API_KEY.indexOf('YOUR_') === 0){
+          showUnavailable(
+            'YouTube API key required. Please paste your YouTube Data API v3 key in index.html.',
+            'YT_API_KEY is currently set to placeholder. Replace it with your valid key in index.html.',
+            true
+          );
+          return;
+        }
+
+        if(!window.fetch){
+          showUnavailable('Live statistics unavailable (Browser fetch not supported)', null, true);
+          return;
+        }
+
+        isFetching = true;
+        lastFetchTime = Date.now();
+
+        var apiUrl = 'https://www.googleapis.com/youtube/v3/channels?part=statistics&id=' +
+                     encodeURIComponent(YT_CHANNEL_ID) + '&key=' + encodeURIComponent(YT_API_KEY);
+
+        fetch(apiUrl, {
+          method: 'GET',
+          referrerPolicy: 'no-referrer-when-downgrade'
+        })
+          .then(function(res){
+            if(res.ok){
+              return res.json().then(function(data){
+                handleStatsPayload(data);
+              });
+            }
+
+            return res.json().catch(function(){ return {}; }).then(function(errData){
+              var errObj = errData && errData.error;
+              var reason = '';
+              var message = '';
+
+              if(errObj){
+                message = errObj.message || '';
+                if(errObj.errors && errObj.errors[0] && errObj.errors[0].reason){
+                  reason = errObj.errors[0].reason;
+                }
+                if(!reason && errObj.details && errObj.details[0] && errObj.details[0].reason){
+                  reason = errObj.details[0].reason;
+                }
+              }
+
+              if(res.status === 400 && (reason === 'API_KEY_INVALID' || reason === 'badRequest' || message.indexOf('API key') !== -1)){
+                showUnavailable(
+                  'Live statistics unavailable (Invalid YouTube API key)',
+                  'HTTP 400: YouTube API key is invalid. Check Google Cloud Console: ' + message
+                );
+              } else if(res.status === 403){
+                if(reason === 'API_KEY_HTTP_REFERRER_BLOCKED' || message.indexOf('referer') !== -1){
+                  showUnavailable(
+                    'Live statistics unavailable (API key restricted to https://atmik-yoga-fitness.github.io/)',
+                    'HTTP 403: Referrer restriction mismatch. The key is restricted to your GitHub Pages domain (https://atmik-yoga-fitness.github.io/). Local requests (localhost, file://) are blocked.'
+                  );
+                } else if(reason === 'quotaExceeded' || reason === 'dailyLimitExceeded'){
+                  showUnavailable(
+                    'Live statistics unavailable (YouTube API daily quota reached)',
+                    'HTTP 403: YouTube Data API v3 daily quota exceeded.'
+                  );
+                } else if(reason === 'SERVICE_DISABLED' || message.indexOf('has not been used') !== -1 || message.indexOf('disabled') !== -1){
+                  showUnavailable(
+                    'Live statistics unavailable (YouTube Data API v3 not enabled in Google Cloud)',
+                    'HTTP 403: YouTube Data API v3 is not enabled in your Google Cloud project.'
+                  );
+                } else {
+                  showUnavailable(
+                    'Live statistics unavailable (API access denied: ' + (reason || '403') + ')',
+                    'HTTP 403: ' + message
+                  );
+                }
+              } else if(res.status === 404){
+                showUnavailable(
+                  'Live statistics unavailable (API endpoint not found)',
+                  'HTTP 404: YouTube endpoint not found.'
+                );
+              } else {
+                showUnavailable(
+                  'Live statistics unavailable (HTTP ' + res.status + ')',
+                  'HTTP ' + res.status + ': ' + message
+                );
+              }
+            });
+          })
+          .catch(function(networkErr){
+            showUnavailable(
+              'Live statistics unavailable (Network error)',
+              'Network failure while contacting YouTube Data API v3: ' + (networkErr && networkErr.message || networkErr)
+            );
+          })
+          .finally(function(){
+            isFetching = false;
+          });
+      }
+
+      function initObserver(){
         var target = document.querySelector('.yt-stats-wrap');
-        if(target && 'IntersectionObserver' in window){
+        if(!target){
+          isElementInView = true;
+          return;
+        }
+
+        if('IntersectionObserver' in window){
           var obs = new IntersectionObserver(function(entries){
             entries.forEach(function(entry){
               if(entry.isIntersecting){
-                startYtCounters();
+                isElementInView = true;
+                if(currentSub !== null && currentView !== null && !hasAnimatedInitial){
+                  renderStats(currentSub, currentView);
+                }
                 obs.disconnect();
               }
             });
-          }, {threshold:0.3});
+          }, { threshold: 0.25 });
           obs.observe(target);
         } else {
-          startYtCounters();
+          isElementInView = true;
         }
+      }
+
+      function start(){
+        getElements();
+        initObserver();
+        fetchYouTubeStats();
+        if(refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(function(){
+          if(!document.hidden){
+            fetchYouTubeStats();
+          }
+        }, YT_REFRESH_MS);
+      }
+
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden && (Date.now() - lastFetchTime >= YT_REFRESH_MS)){
+          fetchYouTubeStats();
+        }
+      });
+
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', start);
+      } else {
+        start();
       }
     })();
     </script>
